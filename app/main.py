@@ -86,7 +86,6 @@ def get_todos(
     if sort_by_deadline:
         query = query.order_by(Todo.deadline.asc())
         
-    # Lấy toàn bộ kết quả phân trang từ DB trước
     todos = query.offset(skip).limit(limit).all()
     
     result = []
@@ -94,11 +93,10 @@ def get_todos(
         decrypted_title = decrypt_text(todo.title)
         decrypted_desc = decrypt_text(todo.description)
         
-        # Nếu có từ khóa, tiến hành lọc bằng Python ở phía ứng dụng
         if keyword:
             keyword_lower = keyword.lower()
             if keyword_lower not in decrypted_title.lower() and keyword_lower not in decrypted_desc.lower():
-                continue # Bỏ qua nếu không khớp từ khóa
+                continue
                 
         result.append({
             "id": todo.id,
@@ -111,3 +109,39 @@ def get_todos(
         })
         
     return result
+
+@app.delete("/api/v1/todos/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_todo(todo_id: int, db: Session=Depends(get_db)):
+    todo = db.query(Todo).filter(Todo.id == todo_id).first()
+    if not todo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Todo not found")
+    db.delete(todo)
+    db.commit()
+    return None
+
+@app.put("/api/v1/todos/{todo_id}", response_model=TodoResponse)
+def update_todo(todo_id: int, todo_update: TodoUpdate, db: Session=Depends(get_db)):
+    todo = db.query(Todo).filter(Todo.id == todo_id).first()
+    if not todo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Todo not found")
+
+    if todo_update.title is not None:
+        todo.title = encrypt_text(todo_update.title)
+    if todo_update.description is not None:
+        todo.description = encrypt_text(todo_update.description)
+    if todo_update.deadline is not None:
+        todo.deadline = todo_update.deadline
+    if todo_update.completed is not None:
+        todo.completed = todo_update.completed
+
+    db.commit()
+    db.refresh(todo)
+    return {
+        "id": todo.id,
+        "title": decrypt_text(todo.title),
+        "description": decrypt_text(todo.description),
+        "deadline": todo.deadline,
+        "created_at": todo.created_at,
+        "completed": todo.completed,
+        "past_deadline": todo.past_deadline
+    }
