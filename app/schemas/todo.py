@@ -10,8 +10,8 @@ class TodoCreate(BaseModel):
 
 class TodoResponse(BaseModel):
     id: int
-    encrypted_title: str
-    encrypted_description: Optional[str]
+    title: str
+    description: Optional[str]
     created_at: datetime
     deadline: Optional[datetime]
     completed: bool
