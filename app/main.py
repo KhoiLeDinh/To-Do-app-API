@@ -50,7 +50,7 @@ def login(user: UserCreate, db: Session=Depends(get_db)):
     db_user = db.query(User).filter(User.username == user.username).first()
     if not db_user or not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
-    access_token = create_access_token(data={"sub": str(db_user.id)})
+    access_token = create_access_token(data={"sub": str(db_user.username)})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/api/v1/todos", response_model = TodoResponse, status_code=status.HTTP_201_CREATED)
@@ -58,7 +58,8 @@ def create_todo(todo: TodoCreate, current_user: User=Depends(get_current_user), 
     new_todo = Todo(
         title = encrypt_text(todo.title),
         description = encrypt_text(todo.description),
-        deadline = todo.deadline
+        deadline = todo.deadline,
+        user_id = current_user.id
     )
     db.add(new_todo)
     db.commit()
@@ -81,7 +82,7 @@ def get_todos(
     sort_by_deadline: bool = False,
     current_user: User=Depends(get_current_user),
     db: Session=Depends(get_db)):
-    query = db.query(Todo)
+    query = db.query(Todo).filter(Todo.user_id == current_user.id) 
     
     if sort_by_deadline:
         query = query.order_by(Todo.deadline.asc())
@@ -111,8 +112,8 @@ def get_todos(
     return result
 
 @app.delete("/api/v1/todos/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_todo(todo_id: int, db: Session=Depends(get_db)):
-    todo = db.query(Todo).filter(Todo.id == todo_id).first()
+def delete_todo(todo_id: int, current_user: User=Depends(get_current_user), db: Session=Depends(get_db)):
+    todo = db.query(Todo).filter(Todo.id == todo_id, Todo.user_id == current_user.id).first()
     if not todo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Todo not found")
     db.delete(todo)
@@ -120,8 +121,8 @@ def delete_todo(todo_id: int, db: Session=Depends(get_db)):
     return None
 
 @app.put("/api/v1/todos/{todo_id}", response_model=TodoResponse)
-def update_todo(todo_id: int, todo_update: TodoUpdate, db: Session=Depends(get_db)):
-    todo = db.query(Todo).filter(Todo.id == todo_id).first()
+def update_todo(todo_id: int, todo_update: TodoUpdate, current_user: User=Depends(get_current_user), db: Session=Depends(get_db)):
+    todo = db.query(Todo).filter(Todo.id == todo_id, Todo.user_id == current_user.id).first()
     if not todo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Todo not found")
 
