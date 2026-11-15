@@ -3,7 +3,7 @@ from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
 from datetime import datetime
 
 class Todo(Base):
-    __tablename__ = "todos"
+    __tablename__ = "todo"
 
     id = Column(Integer, primary_key=True, index = True)
     title = Column(String(255), nullable=False)
