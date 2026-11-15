@@ -8,7 +8,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    todos = relationship("Todo", back_populates="user")
+    todo = relationship("Todo", back_populates="user")
 
 class Todo(Base):
     __tablename__ = "todo"

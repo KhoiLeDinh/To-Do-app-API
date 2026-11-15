@@ -30,7 +30,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 #Generate Fernet key for encryption and recryption
 SECRET_KEY = os.getenv("ENCRYPTION_KEY", Fernet.generate_key())
-cipher_suite = Fernet(SECRET_KEY)
+cipher_suite = Fernet(settings.ENCRYPTION_KEY.encode())
 
 #Create encryption and decryption functions
 #Encryption Function
