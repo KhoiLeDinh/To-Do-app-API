@@ -1,8 +1,11 @@
 from fastapi import FastAPI
+from fastapi.security import OAuth2PasswordBearer
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import encrypt_text, decrypt_text
-from app.models.todo import Todo
-from app.schemas.todo import TodoCreate, TodoResponse, TodoUpdate
+import jwt 
+from app.core.security import encrypt_text, decrypt_text, hash_password, verify_password, create_access_token
+from app.models.todo import Todo, User
+from app.schemas.todo import TodoCreate, TodoResponse, TodoUpdate, UserResponse, UserCreate, Token
 from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text, or_
@@ -10,8 +13,48 @@ from typing import Optional
 
 app = FastAPI()
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+def get_current_user(token: str=Depends(oauth2_scheme), db: Session=Depends(get_db)):
+    credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except (jwt.PyJWTError, ValueError):
+        raise credentials_exception
+
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise credentials_exception 
+    return user
+
+@app.post("/register", response_model = UserResponse, status_code=status.HTTP_201_CREATED)
+def register(user: UserCreate, db: Session=Depends(get_db)):
+    existing_user = db.query(User).filter(User.username == user.username).first()
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
+
+    new_user = User(
+        username = user.username,
+        hashed_password = hash_password(user.password)
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@app.post("/login", response_model = Token)
+def login(user: UserCreate, db: Session=Depends(get_db)):
+    db_user = db.query(User).filter(User.username == user.username).first()
+    if not db_user or not verify_password(user.password, db_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
+    access_token = create_access_token(data={"sub": str(db_user.id)})
+    return {"access_token": access_token, "token_type": "bearer"}
+
 @app.post("/api/v1/todos", response_model = TodoResponse, status_code=status.HTTP_201_CREATED)
-def create_todo(todo: TodoCreate, db: Session=Depends(get_db)):
+def create_todo(todo: TodoCreate, current_user: User=Depends(get_current_user), db: Session=Depends(get_db)):
     new_todo = Todo(
         title = encrypt_text(todo.title),
         description = encrypt_text(todo.description),
@@ -36,6 +79,7 @@ def get_todos(
     limit: int = 10,
     keyword: Optional[str] = None,
     sort_by_deadline: bool = False,
+    current_user: User=Depends(get_current_user),
     db: Session=Depends(get_db)):
     query = db.query(Todo)
     
