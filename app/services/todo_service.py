@@ -79,6 +79,7 @@ def create_todo_item(payload: TodoCreate, current_user: User, db: Session) -> To
     db.add(new_todo)
     db.commit()
     db.refresh(new_todo)
+    _invalidate_user_todo_cache(current_user.id)
     return _to_todo_response(new_todo)
 
 def list_todo_items(
@@ -89,6 +90,17 @@ def list_todo_items(
         keyword: str | None = None,
         sort_by_deadline: bool=False,
 ) -> list[TodoResponse]:
+    cache_key = _build_todo_list_cache_key(
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit,
+        keyword=keyword,
+        sort_by_deadline=sort_by_deadline
+    )
+    cached = _get_cached_todo(cache_key)
+    if cached is not None:
+        return cached
+    
     query = db.query(Todo).filter(User.id == current_user.id)
     if sort_by_deadline:
         query = query.order_by(Todo.deadline.asc())
@@ -116,6 +128,7 @@ def list_todo_items(
                 past_deadline=todo.past_deadline,
             )
         )
+        _set_cached_todo(cache_key, result)
     return result
 
 def update_todo_item(
@@ -139,7 +152,8 @@ def update_todo_item(
 
     db.commit()
     db.refresh(todo)
-    return _to_todo_response
+    _invalidate_user_todo_cache(current_user.id)
+    return _to_todo_response(todo)
 
 def delete_todo_item(
         todo_id: int,
@@ -149,3 +163,5 @@ def delete_todo_item(
     todo = _get_owned_todo(todo_id=todo_id, current_user=current_user, db=db)
     db.delete(todo)
     db.commit()
+
+    _invalidate_user_todo_cache(current_user.id)
