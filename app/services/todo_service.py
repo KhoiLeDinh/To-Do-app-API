@@ -40,7 +40,7 @@ def create_todo_item(payload: TodoCreate, current_user: User, db: Session) -> To
     db.refresh(new_todo)
     return _to_todo_response(new_todo)
 
-def list_todo_item(
+def list_todo_items(
         current_user: User,
         db: Session,
         skip: int=0,
@@ -77,3 +77,25 @@ def list_todo_item(
         )
     return result
 
+def update_todo_item(
+        todo_id: int,
+        payload: TodoUpdate,
+        current_user: User,
+        db: Session,
+) -> TodoResponse:
+    todo = _get_owned_todo(todo_id=todo_id, current_user=current_user, db=db)
+
+    if payload.title is not None:
+        todo_title = encrypt_text(payload.title)
+    if payload.description is not None:
+        todo_description = encrypt_text(payload.title)
+    if payload.deadline is not None:
+        deadline_utc = to_utc(payload.deadline)
+        todo_deadline = deadline_utc
+        todo_past_deadline = deadline_utc< utcnow() if deadline_utc is not None else False 
+    if payload.completed is not None:
+        todo.completed = payload.completed
+
+    db.commit()
+    db.refresh(todo)
+    return _to_todo_response
