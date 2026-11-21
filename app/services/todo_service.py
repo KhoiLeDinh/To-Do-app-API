@@ -5,6 +5,47 @@ from app.core.time import to_utc, utcnow
 from app.models.todo import Todo
 from app.models.users import User
 from app.schemas.todo import TodoCreate, TodoResponse, TodoUpdate
+import json
+import redis
+from app.core.redis import redis_client
+
+CACHE_TTL_SECONDS = 30
+
+def _build_todo_list_cache_key(
+        user_id: int,
+        skip: int,
+        limit: int,
+        keyword: str | None = None,
+        sort_by_deadline: bool=False
+) -> str:
+    kw = keyword.strip().lower() if keyword else ""
+    return f"todos:user:{user_id}:skip={skip}:limit={limit}:kw={kw}:sort={sort_by_deadline}"
+
+def _get_cached_todo(cache_key: str) -> list[TodoResponse] | None:
+    try:
+        raw = redis_client.get(cache_key)
+        if not raw:
+            return None
+        data = json.loads(raw)
+        return [TodoResponse.model_validate(item) for item in data]
+    except redis.RedisError:
+        return None
+
+def _set_cached_todo(cache_key: str, todos: list[TodoResponse]) -> None:
+    try:
+        payload = json.dump([item.model_dump(mode="json") for item in todos])
+        redis_client.setex(cache_key, CACHE_TTL_SECONDS, payload)                    
+    except redis.RedisError:
+        pass
+
+def _invalidate_user_todo_cache(user_id: int) -> None:
+    try:
+        pattern = f"todo:user:{user_id}"
+        keys = list(redis_client.scan_iter(match=pattern))
+        if keys:
+            redis_client.delete(*keys)
+    except redis.RedisError:
+        pass            
 
 def _to_todo_response(todo: Todo) -> TodoResponse:
     return TodoResponse(
@@ -38,6 +79,7 @@ def create_todo_item(payload: TodoCreate, current_user: User, db: Session) -> To
     db.add(new_todo)
     db.commit()
     db.refresh(new_todo)
+    _invalidate_user_todo_cache(current_user.id)
     return _to_todo_response(new_todo)
 
 def list_todo_items(
@@ -48,6 +90,17 @@ def list_todo_items(
         keyword: str | None = None,
         sort_by_deadline: bool=False,
 ) -> list[TodoResponse]:
+    cache_key = _build_todo_list_cache_key(
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit,
+        keyword=keyword,
+        sort_by_deadline=sort_by_deadline
+    )
+    cached = _get_cached_todo(cache_key)
+    if cached is not None:
+        return cached
+    
     query = db.query(Todo).filter(User.id == current_user.id)
     if sort_by_deadline:
         query = query.order_by(Todo.deadline.asc())
@@ -75,6 +128,7 @@ def list_todo_items(
                 past_deadline=todo.past_deadline,
             )
         )
+        _set_cached_todo(cache_key, result)
     return result
 
 def update_todo_item(
@@ -98,7 +152,8 @@ def update_todo_item(
 
     db.commit()
     db.refresh(todo)
-    return _to_todo_response
+    _invalidate_user_todo_cache(current_user.id)
+    return _to_todo_response(todo)
 
 def delete_todo_item(
         todo_id: int,
@@ -108,3 +163,5 @@ def delete_todo_item(
     todo = _get_owned_todo(todo_id=todo_id, current_user=current_user, db=db)
     db.delete(todo)
     db.commit()
+
+    _invalidate_user_todo_cache(current_user.id)
