@@ -17,7 +17,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
         payload = jwt.decode(credentials.credentials,
                              settings.SECRET_KEY,
                              algorithms=[settings.ALGORITHM])
-        username = str | None = payload.get("sub")
+        username: str | None = payload.get("sub")
         if not username:
             raise credentials_exception
         
