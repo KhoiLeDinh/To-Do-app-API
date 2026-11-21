@@ -5,6 +5,47 @@ from app.core.time import to_utc, utcnow
 from app.models.todo import Todo
 from app.models.users import User
 from app.schemas.todo import TodoCreate, TodoResponse, TodoUpdate
+import json
+import redis
+from app.core.redis import redis_client
+
+CACHE_TTL_SECONDS = 30
+
+def _build_todo_list_cache_key(
+        user_id: int,
+        skip: int,
+        limit: int,
+        keyword: str | None = None,
+        sort_by_deadline: bool=False
+) -> str:
+    kw = keyword.strip().lower() if keyword else ""
+    return f"todos:user:{user_id}:skip={skip}:limit={limit}:kw={kw}:sort={sort_by_deadline}"
+
+def _get_cached_todo(cache_key: str) -> list[TodoResponse] | None:
+    try:
+        raw = redis_client.get(cache_key)
+        if not raw:
+            return None
+        data = json.loads(raw)
+        return [TodoResponse.model_validate(item) for item in data]
+    except redis.RedisError:
+        return None
+
+def _set_cached_todo(cache_key: str, todos: list[TodoResponse]) -> None:
+    try:
+        payload = json.dump([item.model_dump(mode="json") for item in todos])
+        redis_client.setex(cache_key, CACHE_TTL_SECONDS, payload)                    
+    except redis.RedisError:
+        pass
+
+def _invalidate_user_todo_cache(user_id: int) -> None:
+    try:
+        pattern = f"todo:user:{user_id}"
+        keys = list(redis_client.scan_iter(match=pattern))
+        if keys:
+            redis_client.delete(*keys)
+    except redis.RedisError:
+        pass            
 
 def _to_todo_response(todo: Todo) -> TodoResponse:
     return TodoResponse(
