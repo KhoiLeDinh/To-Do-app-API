@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
 from app.core.database import get_db
 import jwt 
@@ -10,24 +10,28 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text, or_
 from typing import Optional
+from app.core.database import engine, Base
+from app.models.todo import User, Todo
+from datetime import datetime, timezone
+
 
 app = FastAPI()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+security = HTTPBearer()
 
-def get_current_user(token: str=Depends(oauth2_scheme), db: Session=Depends(get_db)):
-    credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    token = credentials.credentials
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
-            raise credentials_exception
-    except (jwt.PyJWTError, ValueError):
-        raise credentials_exception
-
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
+    
     user = db.query(User).filter(User.username == username).first()
-    if not user:
-        raise credentials_exception 
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
 
 @app.post("/register", response_model = UserResponse, status_code=status.HTTP_201_CREATED)
@@ -55,15 +59,22 @@ def login(user: UserCreate, db: Session=Depends(get_db)):
 
 @app.post("/api/v1/todos", response_model = TodoResponse, status_code=status.HTTP_201_CREATED)
 def create_todo(todo: TodoCreate, current_user: User=Depends(get_current_user), db: Session=Depends(get_db)):
+    # Sử dụng thời gian local thuần túy không kèm tzinfo để khớp hoàn toàn với Postgres
+    now_local = datetime.now()
+    is_past = todo.deadline.replace(tzinfo=None) < now_local if todo.deadline else False
+
     new_todo = Todo(
         title = encrypt_text(todo.title),
         description = encrypt_text(todo.description),
         deadline = todo.deadline,
+        completed = False,
+        past_deadline = is_past,
         user_id = current_user.id
     )
     db.add(new_todo)
     db.commit()
     db.refresh(new_todo)
+    
     return {
         "id": new_todo.id,
         "title": decrypt_text(new_todo.title),

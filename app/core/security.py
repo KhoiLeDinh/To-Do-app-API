@@ -4,35 +4,43 @@ from passlib.context import CryptContext
 import jwt 
 from app.core.config import settings
 from datetime import datetime, timedelta, timezone
+import bcrypt
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+SECRET_KEY = settings.SECRET_KEY
+ENCRYPTION_KEY = settings.ENCRYPTION_KEY
+
+def hash_password(password: str) -> str:
+    # Mã hóa password trực tiếp bằng bcrypt, tự động cắt ngắn dưới 72 bytes
+    pwd_bytes = password.encode('utf-8')
+    if len(pwd_bytes) > 72:
+        pwd_bytes = pwd_bytes[:72]
+    hashed = bcrypt.hashpw(pwd_bytes, bcrypt.gensalt())
+    return hashed.decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # So khớp password trực tiếp bằng bcrypt
+    pwd_bytes = plain_password.encode('utf-8')
+    if len(pwd_bytes) > 72:
+        pwd_bytes = pwd_bytes[:72]
+    try:
+        return bcrypt.checkpw(pwd_bytes, hashed_password.encode('utf-8'))
+    except ValueError:
+        return False
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-
-    
-#Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-#Password hashing function
-def hash_password(password: str) -> str:
-    if len(password.encode('utf-8')) > 72:
-        password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-    return pwd_context.hash(password)
-
-#Password verification function
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
 #Generate Fernet key for encryption and recryption
-SECRET_KEY = os.getenv("ENCRYPTION_KEY", Fernet.generate_key())
-cipher_suite = Fernet(settings.ENCRYPTION_KEY.encode())
+cipher_suite = Fernet(ENCRYPTION_KEY.encode())
 
 #Create encryption and decryption functions
 #Encryption Function
