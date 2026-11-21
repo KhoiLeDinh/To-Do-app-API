@@ -39,3 +39,41 @@ def create_todo_item(payload: TodoCreate, current_user: User, db: Session) -> To
     db.commit()
     db.refresh(new_todo)
     return _to_todo_response(new_todo)
+
+def list_todo_item(
+        current_user: User,
+        db: Session,
+        skip: int=0,
+        limit: int=10,
+        keyword: str | None = None,
+        sort_by_deadline: bool=False,
+) -> list[TodoResponse]:
+    query = db.query(Todo).filter(User.id == current_user.id)
+    if sort_by_deadline:
+        query = query.order_by(Todo.deadline.asc())
+    todos = query.offset(skip).limit(limit).all()
+    result: list[TodoResponse] = []
+
+    for todo in todos:
+        decrypted_title = decrypt_text(todo.title) or ""
+        decrypted_description = decrypt_text(todo.description)
+
+        if keyword:
+            keyword_lower = keyword.lower()
+            title_lower = decrypted_title.lower() 
+            desc_lower = decrypted_description.lower() if decrypted_description is not None else ""
+            if keyword_lower not in decrypted_title.lower() and keyword_lower not in desc_lower:
+                continue
+        result.append(
+            TodoResponse(
+                id=todo.id,
+                title=decrypted_title,
+                description=decrypted_description,
+                deadline=todo.deadline,
+                created_at=todo.created_at,
+                completed=todo.completed,
+                past_deadline=todo.past_deadline,
+            )
+        )
+    return result
+
