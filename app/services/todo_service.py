@@ -99,3 +99,12 @@ def update_todo_item(
     db.commit()
     db.refresh(todo)
     return _to_todo_response
+
+def delete_todo_item(
+        todo_id: int,
+        current_user: User,
+        db: Session
+) -> None:
+    todo = _get_owned_todo(todo_id=todo_id, current_user=current_user, db=db)
+    db.delete(todo)
+    db.commit()
