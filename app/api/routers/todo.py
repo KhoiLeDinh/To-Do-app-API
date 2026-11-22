@@ -11,7 +11,7 @@ from app.services.todo_service import (
     update_todo_item,
 )
 
-router = APIRouter(prefix="/api/v1/todos", tags=["todos"])
+router = APIRouter(prefix="/todos", tags=["todos"])
 
 @router.post("", response_model=TodoResponse, status_code=status.HTTP_201_CREATED)
 def create_todo(

@@ -11,6 +11,6 @@ router = APIRouter(tags=["auth"])
 def register(user:UserCreate, db: Session = Depends(get_db)):
     return register_user(payload=user, db=db)
 
-@router.post("/login", response_model=Token, dependenies=[Depends(login_rate_limiter)])
+@router.post("/login", response_model=Token, dependencies=[Depends(login_rate_limiter)])
 def login(user:UserCreate, db: Session = Depends(get_db)):
     return login_user(payload=user, db=db)

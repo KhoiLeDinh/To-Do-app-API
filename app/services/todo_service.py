@@ -33,14 +33,14 @@ def _get_cached_todo(cache_key: str) -> list[TodoResponse] | None:
 
 def _set_cached_todo(cache_key: str, todos: list[TodoResponse]) -> None:
     try:
-        payload = json.dump([item.model_dump(mode="json") for item in todos])
+        payload = json.dumps([item.model_dump(mode="json") for item in todos])
         redis_client.setex(cache_key, CACHE_TTL_SECONDS, payload)                    
     except redis.RedisError:
         pass
 
 def _invalidate_user_todo_cache(user_id: int) -> None:
     try:
-        pattern = f"todo:user:{user_id}"
+        pattern = f"todos:user:{user_id}:*"
         keys = list(redis_client.scan_iter(match=pattern))
         if keys:
             redis_client.delete(*keys)
@@ -101,7 +101,7 @@ def list_todo_items(
     if cached is not None:
         return cached
     
-    query = db.query(Todo).filter(User.id == current_user.id)
+    query = db.query(Todo).filter(Todo.user_id == current_user.id)
     if sort_by_deadline:
         query = query.order_by(Todo.deadline.asc())
     todos = query.offset(skip).limit(limit).all()
@@ -128,7 +128,7 @@ def list_todo_items(
                 past_deadline=todo.past_deadline,
             )
         )
-        _set_cached_todo(cache_key, result)
+    _set_cached_todo(cache_key, result)
     return result
 
 def update_todo_item(
@@ -140,13 +140,13 @@ def update_todo_item(
     todo = _get_owned_todo(todo_id=todo_id, current_user=current_user, db=db)
 
     if payload.title is not None:
-        todo_title = encrypt_text(payload.title)
+        todo.title = encrypt_text(payload.title)
     if payload.description is not None:
-        todo_description = encrypt_text(payload.title)
+        todo.description = encrypt_text(payload.title)
     if payload.deadline is not None:
         deadline_utc = to_utc(payload.deadline)
-        todo_deadline = deadline_utc
-        todo_past_deadline = deadline_utc< utcnow() if deadline_utc is not None else False 
+        todo.deadline = deadline_utc
+        todo.past_deadline = deadline_utc< utcnow() if deadline_utc is not None else False 
     if payload.completed is not None:
         todo.completed = payload.completed
 

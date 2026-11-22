@@ -8,7 +8,7 @@ from app.models.users import User
 
 bearer_scheme = HTTPBearer()
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme), \
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme), 
                      db: Session = Depends(get_db)) -> User:
     credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                           detail="Invalid authentication credentials")
