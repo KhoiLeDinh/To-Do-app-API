@@ -1,6 +1,23 @@
-fastapi>=0.100.0
-uvicorn[standard]>=0.20.0
-sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0
-cryptography>=42.0.0
-pydantic>=2.0.0
+# Web API & ASGI Server
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+
+# Data Validation & Settings (Pydantic V2)
+pydantic>=2.7.0,<3.0.0
+pydantic-settings>=2.3.0,<3.0.0
+
+# Database (SQLAlchemy + PostgreSQL)
+sqlalchemy>=2.0.30,<3.0.0
+psycopg[binary]>=3.2.0,<4.0.0
+alembic>=1.13.0,<2.0.0
+
+# Redis (Rate Limiting & Caching)
+redis>=5.0.0,<6.0.0
+
+# Auth & Security (nếu có dùng JWT / hash password)
+pyjwt>=2.8.0,<3.0.0
+pwdlib[argon2]>=0.2.0,<1.0.0
+
+# Testing
+pytest>=8.2.0,<9.0.0
+httpx>=0.27.0,<1.0.0
