@@ -19,7 +19,7 @@ def check_rate_limit(
         if count > max_requests:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                details="Too many requests",
+                detail="Too many requests",
                 headers={"Retry-After": str(window_seconds)},
                 )
     except redis.RedisError:
