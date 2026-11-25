@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.users import User
+import redis
+from collections.abc import Generator
+from app.core.redis import redis_client
 
 bearer_scheme = HTTPBearer()
 
@@ -28,3 +31,6 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
     if user is None:
         raise credentials_exception
     return user
+
+def get_redis() -> Generator[redis.Redis, None, None] :
+    yield redis_client
