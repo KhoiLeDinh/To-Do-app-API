@@ -32,7 +32,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-todo_user}:${POSTGRES_PASSWORD:-todo_password}@db:5432/${POSTGRES_DB:-todo_db}
+      DATABASE_URL: postgresql+psycopg://todo_user:todo_password@db:5432/todo_db
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
