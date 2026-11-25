@@ -10,8 +10,17 @@ from app.services.todo_service import (
     list_todo_items,
     update_todo_item,
 )
+import hashlib
+import json
+
 
 router = APIRouter(prefix="/todos", tags=["todos"])
+
+IDEMPOTENCY_TTL_SECONDS = 86400
+
+def hash_payload(payload_dict:dict) -> str:
+    canonical = json.dumps(payload_dict, sort_keys=True, ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 @router.post("", response_model=TodoResponse, status_code=status.HTTP_201_CREATED)
 def create_todo(

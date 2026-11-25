@@ -8,13 +8,8 @@ from app.schemas.todo import TodoCreate, TodoResponse, TodoUpdate
 import json
 import redis
 from app.core.redis import redis_client
-import hashlib
 
 CACHE_TTL_SECONDS = 30
-
-def hash_payload(payload_dict: dict) -> str:
-    canonical = json.dumps(payload_dict, sort_keys=True, ensure_ascii=True)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 def _build_todo_list_cache_key(
         user_id: int,
