@@ -54,7 +54,11 @@ def create_todo(
 ):
     payload_hash = hash_payload(todo.model_dump(mode="json"))
     if not idempotency_key:
-        created = create_todo_item(db, current_user.id, todo)
+        created = create_todo_item(
+        payload=todo,
+        current_user=current_user,
+        db=db,
+        )
         return TodoResponse.model_validate(created)
 
     redis_key = f"idem:post_todos:{current_user.id}:{idempotency_key}"
@@ -75,7 +79,11 @@ def create_todo(
         )
 
     try:
-        created = create_todo_item(db, current_user.id, todo)
+        created = create_todo_item(
+                payload=todo,
+                current_user=current_user,
+                db=db,
+                )
         body = TodoResponse.model_validate(created).model_dump(mode="json")
 
         completed_data = json.dumps(
